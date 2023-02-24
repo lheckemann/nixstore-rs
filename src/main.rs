@@ -1,7 +1,7 @@
 use std::{
     env,
     io::{Read, Write},
-    os::unix::net::UnixStream,
+    os::unix::net::UnixStream, string::FromUtf8Error,
 };
 
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -12,6 +12,8 @@ where
     T: Read + Write,
 {
     connection: T,
+    daemon_version: u64,
+    daemon_nix_version: String,
 }
 
 #[derive(Debug)]
@@ -20,8 +22,11 @@ pub enum Error {
     Read(std::io::Error),
     Write(std::io::Error),
     Flush(std::io::Error),
+    StderrWrite(std::io::Error),
+    ParseUTF8(std::string::FromUtf8Error),
     ProtocolMismatch,
     Unimplemented,
+    UnsupportedProtocolVersion(u64),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -47,6 +52,10 @@ const STDERR_START_ACTIVITY: u64 = 0x53545254;
 const STDERR_STOP_ACTIVITY: u64 = 0x53544f50;
 const STDERR_RESULT: u64 = 0x52534c54;
 
+const PROTOCOL_VERSION: u64 = 0x0100 | 34;
+
+const NULS: [u8; 8] = [0u8; 8];
+
 impl<T> NixStoreConnection<T>
 where
     T: Read + Write,
@@ -64,44 +73,74 @@ where
     }
 
     fn init(&mut self) -> Result<()> {
-        self.connection
-            .write_u64::<LittleEndian>(WORKER_MAGIC_1)
-            .map_err(Error::Read)?;
-        if self
-            .connection
-            .read_u64::<LittleEndian>()
-            .map_err(Error::Write)?
-            != WORKER_MAGIC_2
+        self.write_u64(WORKER_MAGIC_1)?;
+        if self.read_u64()? != WORKER_MAGIC_2
         {
             return Err(Error::ProtocolMismatch);
         }
+        self.daemon_version = self.read_u64()?;
+        // TODO: support other versions
+        if self.daemon_version != PROTOCOL_VERSION {
+            return Err(Error::UnsupportedProtocolVersion(self.daemon_version));
+        }
+        self.write_u64(PROTOCOL_VERSION)?;
+        self.write_u64(0)?; // obsolete CPU affinity
+        self.write_u64(0)?; // obsolete reserveSpace
+        self.connection.flush().map_err(Error::Flush)?;
+        self.daemon_nix_version = self.read_string()?;
+        self.process_stderr()?;
         Ok(())
     }
 
     fn read_string(&mut self) -> Result<String> {
-        Err(Error::Unimplemented)
+        let len = self.read_u64()? as usize;
+        let mut buf = vec![0u8; len];
+        self.connection.read_exact(&mut buf).map_err(Error::Read)?;
+        let mut padding = vec![0u8; 8 - len%8];
+        self.connection.read_exact(&mut padding).map_err(Error::Read)?;
+        String::from_utf8(buf).map_err(Error::ParseUTF8)
     }
     fn write_string(&mut self, str: &str) -> Result<()> {
-        Err(Error::Unimplemented)
+        self.write_u64(str.len() as u64)?;
+        self.connection
+            .write_all(&str.as_bytes())
+            .map_err(Error::Write)?;
+        // padding
+        self.connection.write_all(&NULS[..(8 - str.len() % 8)]).map_err(Error::Write)?;
+        Ok(())
     }
 
     fn process_stderr(&mut self) -> Result<()> {
+        // TODO: make flushing optional? It is in Nix
         self.connection.flush().map_err(Error::Flush)?;
-        match self.read_u64()? {
-            STDERR_WRITE => {
-                unimplemented!()
-            }
-            STDERR_READ => {
-                unimplemented!()
-            }
-            _ => {
-                unimplemented!()
+
+        loop {
+            match self.read_u64()? {
+                STDERR_WRITE => {
+                    let s = self.read_string()?;
+                    // TODO: allow replacing stderr
+                    std::io::stderr().write_all(&s.as_bytes()).map_err(Error::StderrWrite)?;
+                }
+                STDERR_READ => {
+                    unimplemented!()
+                }
+                STDERR_START_ACTIVITY => {
+                }
+                STDERR_LAST => {
+                    break;
+}
+                n => {
+                    eprintln!("Unimplemented stderr message: {n:#x}");
+                    unimplemented!()
+                }
             }
         }
+        Ok(())
     }
 
     pub fn connect(connection: T) -> Result<Self> {
-        let mut result = Self { connection };
+        let mut result = Self {
+            connection, daemon_version: 0, daemon_nix_version: String::from("") };
         result.init()?;
         Ok(result)
     }
@@ -117,8 +156,8 @@ where
 
 fn main() -> Result<()> {
     let mut conn = NixStoreConnection::connect_local()?;
-    let path = "foo";
+    let path = "/nix/store/zw1yqigr88q180q8lgql3zx9yq6z33zk-nixos-system-geruest-22.11-20230207-af96094";
     let is_valid = conn.is_valid_path(path)?;
-    println!("{path} is {}valid", if is_valid {""} else {"in"});
+    println!("{path} is {}valid", if is_valid { "" } else { "in" });
     Ok(())
 }
