@@ -232,22 +232,14 @@ where
 
 impl NixStoreConnection<RW<ChildStdout, ChildStdin>> {
     pub fn connect_to_store(uri: &str) -> Result<Self> {
-        let mut command = if true {
-            let mut command = Command::new("gdbserver");
-            command.arg("localhost:1234").arg("nix-daemon");
-            command
-        } else {
-            Command::new("nix-daemon")
-        };
+        let mut command = Command::new("nix-daemon");
         command
             .arg("--store")
             .arg(uri)
             .arg("--stdio")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped());
-        let process = command
-            .spawn()
-            .map_err(Error::SpawnChild)?;
+        let process = command.spawn().map_err(Error::SpawnChild)?;
         Self::connect(RW {
             r: process.stdout.unwrap(),
             w: process.stdin.unwrap(),
