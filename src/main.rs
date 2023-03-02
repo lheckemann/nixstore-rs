@@ -195,6 +195,9 @@ where
                     let fields = self.read_fields()?;
                     let parent_activity_id = self.read_u64()?;
                 }
+                STDERR_STOP_ACTIVITY => {
+                    let activity_id = self.read_u64()?;
+                }
                 STDERR_LAST => {
                     break;
                 }
