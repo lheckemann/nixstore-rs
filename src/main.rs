@@ -157,18 +157,20 @@ where
     fn read_fields(&mut self) -> Result<Vec<Field>> {
         let num_fields = self.read_u64()?;
         let mut result = Vec::with_capacity(num_fields as usize);
-        let field_type = self.read_u64()?;
-        result.push(match field_type {
-            0 => {
-                // tInt
-                Field::Int(self.read_u64()?)
-            }
-            1 => {
-                // tString
-                Field::String(self.read_string()?)
-            }
-            _ => return Err(Error::UnsupportedFieldType(field_type)),
-        });
+        for _ in 0..num_fields {
+            let field_type = self.read_u64()?;
+            result.push(match field_type {
+                0 => {
+                    // tInt
+                    Field::Int(self.read_u64()?)
+                }
+                1 => {
+                    // tString
+                    Field::String(self.read_string()?)
+                }
+                _ => return Err(Error::UnsupportedFieldType(field_type)),
+            });
+        }
         Ok(result)
     }
 
