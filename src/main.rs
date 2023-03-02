@@ -178,23 +178,23 @@ where
                         .map_err(Error::StderrWrite)?;
                 }
                 STDERR_START_ACTIVITY => {
-                    let activity_id = self.read_u64()?;
-                    let level = self.read_u64()?;
-                    let activity_type = self.read_u64()?;
-                    let description = self.read_string()?;
-                    let fields = self.read_fields()?;
-                    //let parent_activity_id = self.read_u64()?;
+                    let _activity_id = self.read_u64()?;
+                    let _level = self.read_u64()?;
+                    let _activity_type = self.read_u64()?;
+                    let _description = self.read_string()?;
+                    let _fields = self.read_fields()?;
+                    //let _parent_activity_id = self.read_u64()?;
                 }
                 STDERR_STOP_ACTIVITY => {
-                    let activity_id = self.read_u64()?;
+                    let _activity_id = self.read_u64()?;
                 }
                 STDERR_LAST => {
                     break;
                 }
                 STDERR_RESULT => {
-                    let activity_id = self.read_u64()?;
-                    let activity_type = self.read_u64()?;
-                    let fields = self.read_fields()?;
+                    let _activity_id = self.read_u64()?;
+                    let _result_type = self.read_u64()?;
+                    let _fields = self.read_fields()?;
                 }
                 n => {
                     panic!("Unimplemented stderr message: {n:#x} ({:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?})",
