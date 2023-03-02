@@ -183,7 +183,7 @@ where
                     let activity_type = self.read_u64()?;
                     let description = self.read_string()?;
                     let fields = self.read_fields()?;
-                    let parent_activity_id = self.read_u64()?;
+                    //let parent_activity_id = self.read_u64()?;
                 }
                 STDERR_STOP_ACTIVITY => {
                     let activity_id = self.read_u64()?;
