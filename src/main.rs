@@ -258,12 +258,15 @@ impl NixStoreConnection<RWJoin<ChildStdout, ChildStdin>> {
     }
 }
 
-fn main() -> Result<()> {
-    //let mut conn = NixStoreConnection::connect_local()?;
-    let mut conn = NixStoreConnection::connect_to_store("https://cache.nixos.org")?;
-    let path =
-        "/nix/store/zw1yqigr88q180q8lgql3zx9yq6z33zk-nixos-system-geruest-22.11-20230207-af96094";
-    let is_valid = conn.is_valid_path(path)?;
+fn test_store<T>(connection: &mut NixStoreConnection<T>) -> Result<()> where T: Read + Write {
+    let path = "/nix/store/zw1yqigr88q180q8lgql3zx9yq6z33zk-nixos-system-geruest-22.11-20230207-af96094";
+    let is_valid = connection.is_valid_path(path)?;
     println!("{path} is {}valid", if is_valid { "" } else { "in" });
+    Ok(())
+}
+
+fn main() -> Result<()> {
+    test_store(&mut NixStoreConnection::connect_local()?)?;
+    test_store(&mut NixStoreConnection::connect_to_store("https://cache.nixos.org")?)?;
     Ok(())
 }
