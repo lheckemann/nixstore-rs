@@ -236,7 +236,7 @@ impl NixStoreConnection<UnixStream> {
     pub fn connect_local() -> Result<Self> {
         let path = env::var("NIX_DAEMON_SOCKET_PATH")
             .unwrap_or("/nix/var/nix/daemon-socket/socket".into());
-        let mut stream = UnixStream::connect(path).map_err(Error::Connect)?;
+        let stream = UnixStream::connect(path).map_err(Error::Connect)?;
         Self::connect(stream)
     }
 }
