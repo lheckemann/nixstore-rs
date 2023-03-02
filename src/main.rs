@@ -194,19 +194,14 @@ where
                     let description = self.read_string()?;
                     let fields = self.read_fields()?;
                     let parent_activity_id = self.read_u64()?;
-
-                    eprintln!(
-                        "START_ACTIVITY
-  id: {activity_id}
-  level: {level}
-  type: {activity_type}
-  description: {description}
-  fields: {fields:?}
-  parent_activity_id: {parent_activity_id}"
-                    );
                 }
                 STDERR_LAST => {
                     break;
+                }
+                STDERR_RESULT => {
+                    let activity_id = self.read_u64()?;
+                    let activity_type = self.read_u64()?;
+                    let fields = self.read_fields()?;
                 }
                 n => {
                     panic!("Unimplemented stderr message: {n:#x}");
