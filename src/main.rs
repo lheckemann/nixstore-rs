@@ -35,15 +35,6 @@ pub enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-impl NixStoreConnection<UnixStream> {
-    pub fn connect_local() -> Result<Self> {
-        let path = env::var("NIX_DAEMON_SOCKET_PATH")
-            .unwrap_or("/nix/var/nix/daemon-socket/socket".into());
-        let stream = UnixStream::connect(path).map_err(Error::Connect)?;
-        Self::connect(stream)
-    }
-}
-
 const WORKER_MAGIC_1: u64 = 0x6e697863;
 const WORKER_MAGIC_2: u64 = 0x6478696f;
 
@@ -60,15 +51,11 @@ const PROTOCOL_VERSION: u64 = 0x0100 | 34;
 
 const NULS: [u8; 8] = [0u8; 8];
 
-struct RW<R, W>
-where
-    R: Read,
-    W: Write,
-{
+struct RWJoin<R, W> where R: Read, W: Write {
     r: R,
     w: W,
 }
-impl<R, W> Read for RW<R, W>
+impl<R, W> Read for RWJoin<R, W>
 where
     R: Read,
     W: Write,
@@ -77,7 +64,7 @@ where
         self.r.read(buf)
     }
 }
-impl<R, W> Write for RW<R, W>
+impl<R, W> Write for RWJoin<R, W>
 where
     R: Read,
     W: Write,
@@ -90,6 +77,9 @@ where
         self.w.flush()
     }
 }
+
+trait RW: Read + Write {}
+impl <T> RW for T where T: Read + Write {}
 
 #[derive(Debug)]
 enum Field {
@@ -242,7 +232,16 @@ where
     }
 }
 
-impl NixStoreConnection<RW<ChildStdout, ChildStdin>> {
+impl NixStoreConnection<UnixStream> {
+    pub fn connect_local() -> Result<Self> {
+        let path = env::var("NIX_DAEMON_SOCKET_PATH")
+            .unwrap_or("/nix/var/nix/daemon-socket/socket".into());
+        let mut stream = UnixStream::connect(path).map_err(Error::Connect)?;
+        Self::connect(stream)
+    }
+}
+
+impl NixStoreConnection<RWJoin<ChildStdout, ChildStdin>> {
     pub fn connect_to_store(uri: &str) -> Result<Self> {
         let mut command = Command::new("nix-daemon");
         command
@@ -252,7 +251,7 @@ impl NixStoreConnection<RW<ChildStdout, ChildStdin>> {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped());
         let process = command.spawn().map_err(Error::SpawnChild)?;
-        Self::connect(RW {
+        Self::connect(RWJoin {
             r: process.stdout.unwrap(),
             w: process.stdin.unwrap(),
         })
