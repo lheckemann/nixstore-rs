@@ -204,7 +204,16 @@ where
                     let fields = self.read_fields()?;
                 }
                 n => {
-                    panic!("Unimplemented stderr message: {n:#x}");
+                    panic!("Unimplemented stderr message: {n:#x} ({:?} {:?} {:?} {:?} {:?} {:?} {:?} {:?})",
+                           ((n >> 56) & 0xff) as u8 as char,
+                           ((n >> 48) & 0xff) as u8 as char,
+                           ((n >> 40) & 0xff) as u8 as char,
+                           ((n >> 32) & 0xff) as u8 as char,
+                           ((n >> 24) & 0xff) as u8 as char,
+                           ((n >> 16) & 0xff) as u8 as char,
+                           ((n >> 08) & 0xff) as u8 as char,
+                           ((n >> 00) & 0xff) as u8 as char,
+                    );
                 }
             }
         }
