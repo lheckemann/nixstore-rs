@@ -124,12 +124,10 @@ where
 
     fn read_string(&mut self) -> Result<String> {
         let len = self.read_u64()? as usize;
-        let mut buf = vec![0u8; len];
+        let padding = (8 - len%8) % 8;
+        let mut buf = vec![0u8; len+padding];
         self.connection.read_exact(&mut buf).map_err(Error::Read)?;
-        let mut padding = vec![0u8; 8 - len % 8];
-        self.connection
-            .read_exact(&mut padding)
-            .map_err(Error::Read)?;
+        buf.truncate(len);
         String::from_utf8(buf).map_err(Error::ParseUTF8)
     }
     fn write_string(&mut self, str: &str) -> Result<()> {
@@ -139,7 +137,7 @@ where
             .map_err(Error::Write)?;
         // padding
         self.connection
-            .write_all(&NULS[..(8 - str.len() % 8)])
+            .write_all(&NULS[..(8-str.len()%8) % 8])
             .map_err(Error::Write)?;
         Ok(())
     }
@@ -183,7 +181,7 @@ where
                     let _activity_type = self.read_u64()?;
                     let _description = self.read_string()?;
                     let _fields = self.read_fields()?;
-                    //let _parent_activity_id = self.read_u64()?;
+                    let _parent_activity_id = self.read_u64()?;
                 }
                 STDERR_STOP_ACTIVITY => {
                     let _activity_id = self.read_u64()?;
