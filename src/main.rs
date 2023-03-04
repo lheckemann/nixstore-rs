@@ -3,7 +3,7 @@ use std::{
     io::{Read, Write},
     os::unix::net::UnixStream,
     process::{ChildStdin, ChildStdout, Command, Stdio},
-    string::FromUtf8Error,
+    string::FromUtf8Error, collections::HashSet,
 };
 
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -228,6 +228,24 @@ where
         let result = self.read_u64()?;
         return Ok(result != 0);
     }
+
+    pub fn query_valid_paths(&mut self, paths: &HashSet<&str>) -> Result<HashSet<String>>
+    {
+        self.write_u64(31)?; // wopQueryValidPaths
+        self.write_u64(paths.len() as u64)?;
+        for path in paths {
+            self.write_string(path)?;
+        }
+        self.write_u64(0)?; // buildersUseSubstitutes
+        self.process_stderr()?;
+
+        let result_count = self.read_u64()? as usize;
+        let mut result = HashSet::with_capacity(result_count);
+        for _ in 0..result_count {
+            result.insert(self.read_string()?);
+        }
+        Ok(result)
+    }
 }
 
 impl NixStoreConnection<UnixStream> {
@@ -257,9 +275,19 @@ impl NixStoreConnection<RWJoin<ChildStdout, ChildStdin>> {
 }
 
 fn test_store<T>(connection: &mut NixStoreConnection<T>) -> Result<()> where T: Read + Write {
-    let path = "/nix/store/zw1yqigr88q180q8lgql3zx9yq6z33zk-nixos-system-geruest-22.11-20230207-af96094";
-    let is_valid = connection.is_valid_path(path)?;
-    println!("{path} is {}valid", if is_valid { "" } else { "in" });
+    let mut paths = HashSet::new();
+    paths.insert("/nix/store/zw1yqigr88q180q8lgql3zx9yq6z33zk-nixos-system-geruest-22.11-20230207-af96094");
+    paths.insert("/nix/store/7j2sjbdbhlyda1sm0s6p0frfy0dxj67i-hello-2.12.1");
+
+    let valid = connection.query_valid_paths(&paths)?;
+
+    for path in paths {
+        let is_valid = valid.contains(path);
+        let confirm = connection.is_valid_path(&path)?;
+        println!("{path} is {}valid", if is_valid { "" } else { "in" });
+        println!("{path} is {}valid", if confirm { "" } else { "in" });
+    }
+
     Ok(())
 }
 
